@@ -1,0 +1,77 @@
+{
+  "name": "Assistant Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "assistant",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "http://localhost:8000/assistant",
+        "authentication": "none",
+        "jsonParameters": true,
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        "bodyParametersJson": "={\"question\": $json[\"body\"].question}"
+      },
+      "name": "Call AI Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [520, 300],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "mode": "mergeByIndex",
+        "propertyName1": "data",
+        "propertyName2": "response",
+        "options": {}
+      },
+      "name": "Merge Result",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [760, 300],
+      "credentials": {}
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Call AI Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call AI Backend": {
+      "main": [
+        [
+          {
+            "node": "Merge Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1"
+}
