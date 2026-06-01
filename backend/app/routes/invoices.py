@@ -1,64 +1,72 @@
-from datetime import date, datetime
+from fastapi import APIRouter
+from app.db.database import run_query
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from app.db.database import get_session
-from app.models.invoice import Invoice
-
-router = APIRouter(prefix="/invoices", tags=["invoices"])
+router = APIRouter()
 
 
-class InvoiceCreate(BaseModel):
-    customer_name: str = Field(..., example="Acme Corp")
-    total_amount: float = Field(..., example=199.99)
-    status: str = Field(default="pending", example="pending")
-    due_date: date | None = Field(default=None, example="2025-01-31")
+@router.get("/")
+def list_all_invoices():
+    """Return all invoices joined with vendor name."""
+    return run_query("""
+        SELECT  i.id,
+                i.invoice_number,
+                v.name          AS vendor_name,
+                i.total_amount,
+                i.currency,
+                i.invoice_date,
+                i.due_date,
+                i.status,
+                i.created_at
+        FROM    invoices i
+        JOIN    vendors  v ON v.id = i.vendor_id
+        ORDER   BY i.created_at DESC
+    """)
 
 
-class InvoiceResponse(BaseModel):
-    id: int
-    customer_name: str
-    total_amount: float
-    status: str
-    due_date: date | None
-    created_at: datetime
+@router.get("/unpaid")
+def list_unpaid_invoices():
+    """Return only unpaid and overdue invoices."""
+    return run_query("""
+        SELECT  i.invoice_number,
+                v.name          AS vendor,
+                i.total_amount,
+                i.due_date,
+                i.status,
+                (i.due_date < CURRENT_DATE) AS is_overdue
+        FROM    invoices i
+        JOIN    vendors  v ON v.id = i.vendor_id
+        WHERE   i.status IN ('unpaid', 'overdue')
+        ORDER   BY i.due_date ASC
+    """)
 
-    class Config:
-        orm_mode = True
+
+@router.get("/summary")
+def invoice_summary():
+    """Return total amounts grouped by status."""
+    return run_query("""
+        SELECT  status,
+                COUNT(*)            AS count,
+                SUM(total_amount)   AS total
+        FROM    invoices
+        GROUP   BY status
+        ORDER   BY total DESC
+    """)
 
 
-@router.post("/", response_model=InvoiceResponse)
-async def create_invoice(
-    invoice: InvoiceCreate,
-    session: Session = Depends(get_session),
-) -> InvoiceResponse:
-    invoice_record = Invoice(
-        customer_name=invoice.customer_name,
-        total_amount=invoice.total_amount,
-        status=invoice.status,
-        due_date=invoice.due_date,
+@router.get("/{invoice_id}")
+def get_single_invoice(invoice_id: str):
+    """Return one invoice with all its line items."""
+    invoice = run_query(
+        "SELECT * FROM invoices WHERE id = :id",
+        {"id": invoice_id}
     )
-    session.add(invoice_record)
-    session.commit()
-    session.refresh(invoice_record)
-    return invoice_record
+    if not invoice:
+        return {"error": "Invoice not found"}
 
-
-@router.get("/", response_model=list[InvoiceResponse])
-async def list_invoices(session: Session = Depends(get_session)) -> list[InvoiceResponse]:
-    invoices = session.scalars(select(Invoice)).all()
-    return invoices
-
-
-@router.get("/{invoice_id}", response_model=InvoiceResponse)
-async def get_invoice(
-    invoice_id: int,
-    session: Session = Depends(get_session),
-) -> InvoiceResponse:
-    invoice_record = session.get(Invoice, invoice_id)
-    if not invoice_record:
-        raise HTTPException(status_code=404, detail="Invoice not found")
-    return invoice_record
+    items = run_query(
+        "SELECT * FROM invoice_items WHERE invoice_id = :id",
+        {"id": invoice_id}
+    )
+    result = invoice[0]
+    result["line_items"] = items
+    return result
