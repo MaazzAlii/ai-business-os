@@ -1,77 +1,59 @@
 {
-  "name": "Assistant Workflow",
+  "name": "Workflow 0 — Business Question Assistant",
   "nodes": [
     {
       "parameters": {
-        "path": "assistant",
         "httpMethod": "POST",
-        "responseMode": "onReceived",
+        "path": "business-question",
+        "responseMode": "responseNode",
         "options": {}
       },
-      "name": "Webhook",
+      "id": "node-webhook",
+      "name": "Webhook — receive question",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [250, 300],
-      "credentials": {}
-    },
-    {
-      "parameters": {
-        "requestMethod": "POST",
-        "url": "http://localhost:8000/assistant",
-        "authentication": "none",
-        "jsonParameters": true,
-        "options": {
-          "headers": {
-            "Content-Type": "application/json"
-          }
-        },
-        "bodyParametersJson": "={\"question\": $json[\"body\"].question}"
-      },
-      "name": "Call AI Backend",
-      "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 2,
-      "position": [520, 300],
-      "credentials": {}
+      "position": [240, 300]
     },
     {
       "parameters": {
-        "mode": "mergeByIndex",
-        "propertyName1": "data",
-        "propertyName2": "response",
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/assistant/ask",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ question: $json.body.question }) }}",
         "options": {}
       },
-      "name": "Merge Result",
-      "type": "n8n-nodes-base.merge",
+      "id": "node-fastapi",
+      "name": "HTTP Request — FastAPI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ answer: $json.answer, question: $json.question }) }}",
+        "options": {}
+      },
+      "id": "node-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [760, 300],
-      "credentials": {}
+      "position": [720, 300]
     }
   ],
   "connections": {
-    "Webhook": {
-      "main": [
-        [
-          {
-            "node": "Call AI Backend",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Webhook — receive question": {
+      "main": [[{ "node": "HTTP Request — FastAPI", "type": "main", "index": 0 }]]
     },
-    "Call AI Backend": {
-      "main": [
-        [
-          {
-            "node": "Merge Result",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "HTTP Request — FastAPI": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
     }
-  },
-  "active": false,
-  "settings": {},
-  "versionId": "1"
+  }
 }
