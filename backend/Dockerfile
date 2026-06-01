@@ -2,10 +2,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (build tools needed for some wheels)
 RUN apt-get update && apt-get install -y \
+    build-essential \
     gcc \
+    libpq-dev \
     postgresql-client \
+    pkg-config \
+    libssl-dev \
+    curl \
+    rustc \
+    cargo \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements

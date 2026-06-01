@@ -1,38 +1,39 @@
-from __future__ import annotations
-
 import os
-from pathlib import Path
-from typing import Generator
-
-from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / ".env")
+load_dotenv()
 
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_USER = os.getenv("DB_USER", "bizadmin")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "SuperSecureP@ssw0rd")
-DB_NAME = os.getenv("DB_NAME", "ai_business_os")
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
+    "postgresql://bizadmin:bizpass123@localhost:5432/ai_business_os"
 )
 
-engine = create_engine(DATABASE_URL, future=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+# Create the database connection engine
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def get_session() -> Generator:
-    session = SessionLocal()
+def get_db():
+    """Used by FastAPI routes that need a database session."""
+    db = SessionLocal()
     try:
-        yield session
+        yield db
     finally:
-        session.close()
+        db.close()
 
 
-def init_db() -> None:
-    from app.models.invoice import Base
-
-    Base.metadata.create_all(bind=engine)
+def run_query(sql: str, params: dict = None) -> list:
+    """
+    Run any SQL query and return results as a list of dictionaries.
+    
+    Example:
+        results = run_query("SELECT * FROM invoices WHERE status = :s", {"s": "unpaid"})
+        # returns: [{"id": "...", "status": "unpaid", ...}, ...]
+    """
+    with engine.connect() as conn:
+        result = conn.execute(text(sql), params or {})
+        columns = list(result.keys())
+        rows = result.fetchall()
+        return [dict(zip(columns, row)) for row in rows]

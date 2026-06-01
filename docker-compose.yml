@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: biz-os-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bizadmin
+      POSTGRES_PASSWORD: bizpass123
+      POSTGRES_DB: ai_business_os
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql:ro
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-business-os-backend
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: bizadmin
+      DB_PASSWORD: bizpass123
+      DB_NAME: ai_business_os
+      MISTRAL_API_KEY: ""
+      MISTRAL_API_URL: "https://api.mistral.ai"
+      MISTRAL_MODEL: "mistral-7b-instruct"
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+volumes:
+  db_data:

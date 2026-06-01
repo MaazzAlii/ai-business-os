@@ -1,19 +1,25 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.routes import invoices, assistant
 
-from app.db.database import init_db
-from app.routes.assistant import router as assistant_router
-from app.routes.invoices import router as invoices_router
+app = FastAPI(
+    title="AI Business OS",
+    description="Business automation backend - Phase 1",
+    version="0.1.0"
+)
 
-app = FastAPI(title="AI Business OS", version="0.1.0")
-app.include_router(assistant_router)
-app.include_router(invoices_router)
+# This allows your Streamlit frontend to talk to FastAPI
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    init_db()
-
+# Connect the route files you will create in Steps 7 and 8
+app.include_router(invoices.router,  prefix="/api/invoices",  tags=["invoices"])
+app.include_router(assistant.router, prefix="/api/assistant", tags=["assistant"])
 
 @app.get("/")
-def home() -> dict[str, str]:
-    return {"message": "AI Business OS API Running"}
+def health_check():
+    return {"status": "ok", "service": "AI Business OS"}
